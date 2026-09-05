@@ -22,6 +22,8 @@ Made with <span style="color: #e25555;">&#10084;</span> by
 # no manual edit here either.
 nav = [
   { "Home" = "index.md" },
+  { "Get started" = "get-started.md" },
+  { "Authoring a package" = "authoring.md" },
 ]
 
 [project.theme]

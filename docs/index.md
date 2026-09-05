@@ -9,11 +9,17 @@ the moment a set of them shares patches, a release cadence and a CI run.
 So they live here together, and publication fans back out to the
 individual AUR repositories.
 
-## What is here today
+## The one invariant
 
-- `template/` — the skeleton every package is copied from
-- `scripts/new-package.sh` — copies it into `packages/<name>/`
-- `scripts/lint-package.sh`, `scripts/srcinfo.sh` — the local checks
+Four names are always the same string — the directory, `pkgbase`, the
+multicz component, and the AUR repository — and that string is also the
+Conventional Commit scope. [Authoring a package](authoring.md) explains
+why it is `pkgbase` and not `pkgname`.
+
+## Where to go next
+
+- [Get started](get-started.md) — requirements, add a package, check it
+- [Authoring a package](authoring.md) — the invariant and the rules
 
 This site grows as the repository does; each page arrives with the thing
 it documents.
