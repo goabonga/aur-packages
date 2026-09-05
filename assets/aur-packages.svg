@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2026 Chris <goabonga@pm.me>
+
+  aur-packages master logo. Regenerate the derived assets
+  (docs/aur-packages.svg, docs/favicon.ico) with `scripts/regen-icons.sh`
+  after editing this file.
+
+  Arch's peak, built out of the thing this repository actually ships:
+  the mountain is not drawn, it is the silhouette that three stacked
+  packages leave behind. The apex stays dark because the top of the
+  stack is always the release that has not been cut yet.
+
+  The palette is Arch's own blue (#1793D1) lightening as the stack goes
+  down, so the oldest layer reads as the settled one.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="peak">
+      <path d="M128 58 L204 198 L52 198 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Rounded shell, then the dark ground it frames -->
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="#1793D1"/>
+  <rect x="34" y="34" width="188" height="188" rx="40" fill="#0B1620"/>
+
+  <!-- Three package layers, clipped to the peak -->
+  <g clip-path="url(#peak)">
+    <rect x="44" y="110" width="168" height="24" rx="7" fill="#1793D1"/>
+    <rect x="44" y="142" width="168" height="24" rx="7" fill="#4FC3F7"/>
+    <rect x="44" y="174" width="168" height="24" rx="7" fill="#8FE0FF"/>
+  </g>
+
+  <!-- The peak itself, outlined over the stack -->
+  <path d="M128 58 L204 198 L52 198 Z" fill="none" stroke="#4FC3F7"
+        stroke-width="12" stroke-linejoin="round"/>
+</svg>

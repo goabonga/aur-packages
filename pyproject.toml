@@ -25,3 +25,10 @@ package = false
 doc = [
     "zensical",
 ]
+# Branding-asset tooling, isolated from `doc` so the documentation build
+# never drags a native cairo stack in. Only scripts/regen-icons.sh
+# installs it, on demand, via `uv run --only-group favicon`.
+favicon = [
+    "cairosvg>=2.7",
+    "pillow>=10.0",
+]

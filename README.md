@@ -1,6 +1,11 @@
-# aur-packages
+<h1 align="center">
+  <img src="docs/aur-packages.svg" alt="aur-packages" width="120" /><br/>
+  aur-packages
+</h1>
 
-The AUR packages I run on my Arch Linux GPD Pocket 1.
+<p align="center">
+  <em>The AUR packages I run on my Arch Linux GPD Pocket 1.</em>
+</p>
 
 ## Add a package
 
@@ -27,6 +32,15 @@ scripts/srcinfo.sh <name>            # regenerate its .SRCINFO
 `makepkg --printsrcinfo`, verifies the committed checksums and runs
 namcap. Each check degrades to a warning when its tool is missing, so it
 is still useful off Arch.
+
+## Branding
+
+`assets/aur-packages.svg` is the master logo. Regenerate the derived
+assets after editing it:
+
+```bash
+scripts/regen-icons.sh   # -> docs/aur-packages.svg, docs/favicon.ico
+```
 
 ## License
 

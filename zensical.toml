@@ -27,6 +27,12 @@ nav = [
 [project.theme]
 language = "en"
 
+# Generated from assets/aur-packages.svg by scripts/regen-icons.sh and
+# committed: the docs build never installs the `favicon` group, which
+# carries a native cairo stack. Paths resolve relative to the docs dir.
+logo = "aur-packages.svg"
+favicon = "favicon.ico"
+
 features = [
   "announce.dismiss",
   "content.code.annotate",
