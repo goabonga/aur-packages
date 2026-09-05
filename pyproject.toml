@@ -22,6 +22,11 @@ authors = [{ name = "Chris", email = "goabonga@pm.me" }]
 package = false
 
 [dependency-groups]
+# Tooling for the helper scripts under scripts/. Ruff lints and formats
+# them; there is no application code to type-check, so no mypy.
+dev = [
+    "ruff>=0.16.0",
+]
 doc = [
     "zensical",
 ]
@@ -32,3 +37,23 @@ favicon = [
     "cairosvg>=2.7",
     "pillow>=10.0",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+src = ["scripts"]
+extend-exclude = [".venv", "site"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
