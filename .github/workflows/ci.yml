@@ -390,7 +390,10 @@ jobs:
             echo "| Component | Version |"
             echo "| --- | --- |"
             for c in ${{ steps.bump.outputs.bumped }}; do
-              echo "| \`$c\` | \`$(uv tool run multicz get "$c")\` |"
+              # From the tag, not from `multicz get`: a component that
+              # tracks upstream declares no bump_files, and `get` reads
+              # the version out of one.
+              echo "| \`$c\` | \`$(git describe --tags --match "$c-v*" --abbrev=0)\` |"
             done
             echo ""
             echo "Signed: \`${{ steps.gpg.outputs.available }}\`."
@@ -575,8 +578,10 @@ jobs:
         run: |
           set -euo pipefail
           git config --global --add safe.directory '*'
-          version=$(uv tool run multicz get "$PKG")
-          tag="${PKG}-v${version}"
+          # The tag multicz just created. Read from git rather than from
+          # `multicz get`, which resolves a version out of bump_files - a
+          # component whose pkgver tracks upstream declares none.
+          tag=$(git describe --tags --match "${PKG}-v*" --abbrev=0)
           # Notes for this tag only: the package CHANGELOG accumulates
           # every release, so attaching it whole would make the second
           # release repeat the first.
