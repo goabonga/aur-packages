@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+# This repository ships no Python package. The only reason a pyproject
+# exists is to give `uv` a project to lock, so the documentation build
+# installs a pinned Zensical (`uv sync --frozen --only-group doc`) rather
+# than whatever the index serves that morning.
+#
+# `package = false` tells uv not to build or install this directory.
+
+[project]
+name = "aur-packages"
+version = "0.0.0"
+description = "The AUR packages I run on my Arch Linux GPD Pocket 1."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Chris", email = "goabonga@pm.me" }]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+doc = [
+    "zensical",
+]

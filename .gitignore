@@ -4,3 +4,10 @@ src/
 *.pkg.tar.zst
 *.pkg.tar.zst.sig
 *.src.tar.gz
+
+# Zensical build output and its build cache.
+/site/
+/.cache/
+
+# uv virtualenv for the docs build.
+/.venv/
