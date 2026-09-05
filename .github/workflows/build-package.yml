@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+name: build-package
+
+# Build one package from source, on demand.
+#
+# Deliberately manual. The AUR distributes sources, so nothing in the
+# release path needs a built package, and the packages here include a
+# kernel: building it is roughly an hour of wall clock and more disk than
+# a GitHub runner has free. Running that on every push would buy a signal
+# the cheap metadata checks in `ci` already give, at a hundred times the
+# cost.
+#
+# What it is for: proving a PKGBUILD still builds before a release, and
+# reproducing a build failure someone reports.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package directory under packages/ to build.
+        type: string
+        required: true
+      install:
+        description: Also install the built package, to check it is loadable.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    # A kernel takes well over an hour; the default 360-minute cap is the
+    # real ceiling, this just fails sooner than that when something hangs.
+    timeout-minutes: 300
+    steps:
+      - name: Free disk space on the runner
+        # A kernel build needs more than the ~14 GB a hosted runner leaves
+        # free. The preinstalled toolchains are worth ~25 GB and nothing
+        # here uses them. Removed before the checkout so a failure costs
+        # nothing.
+        run: |
+          set -euo pipefail
+          df -h / | tail -1
+          rm -rf /__t/CodeQL /__t/Java_Temurin-Hotspot_jdk /__t/PyPy /__t/Ruby \
+                 /__t/go /__t/node /__t/CodeQL 2>/dev/null || true
+          df -h / | tail -1
+      - name: Prepare the container
+        run: |
+          set -euo pipefail
+          pacman -Syu --noconfirm --needed git namcap
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+      - uses: actions/checkout@v7
+      - name: Verify the package exists
+        env:
+          PKG: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "packages/$PKG/PKGBUILD" ]; then
+            echo "::error::no such package: packages/$PKG/PKGBUILD"
+            exit 1
+          fi
+      - name: makepkg
+        env:
+          PKG: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          cd "packages/$PKG"
+          # --skippgpcheck: the upstream signing keys are not in the
+          # container's keyring, and the sha256sums already pin every
+          # source byte-for-byte.
+          su builder -c 'makepkg -sf --noconfirm --needed --skippgpcheck'
+          ls -lh ./*.pkg.tar.zst
+      - name: namcap the built package
+        # namcap says far more about a built package than about a
+        # PKGBUILD: it inspects the file tree, the ELF dependencies and
+        # the installed licence.
+        env:
+          PKG: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          cd "packages/$PKG"
+          output=$(namcap ./*.pkg.tar.zst || true)
+          printf '%s\n' "$output"
+          if printf '%s\n' "$output" | grep -q ' E: '; then
+            echo "::error::namcap reported errors on the built package"
+            exit 1
+          fi
+      - name: Install it
+        if: inputs.install
+        env:
+          PKG: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          cd "packages/$PKG"
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          # A package that builds but installs nothing is a real failure
+          # mode: wrong install paths produce a valid, empty archive.
+          for p in $(pacman -Qq | grep -F "$PKG" || true); do
+            files=$(pacman -Qlq "$p" | grep -vE '/$' || true)
+            if [ -z "$files" ]; then
+              echo "::error::$p installed no files"
+              exit 1
+            fi
+            echo "$p owns $(printf '%s\n' "$files" | wc -l) files"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-${{ inputs.package }}
+          path: packages/${{ inputs.package }}/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 7
+      - name: Write step summary
+        if: always()
+        run: |
+          {
+            echo "## Build - \`${{ inputs.package }}\`"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Installed | \`${{ inputs.install }}\` |"
+            echo "| Status | \`${{ job.status }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
