@@ -1,8 +1,9 @@
 # The package template
 
-The skeleton every package in this repository is copied from. Copy the
-directory, rename it and its payload files, and replace `example-pkg`
-throughout with the real package name.
+The skeleton every package in this repository is copied from.
+`scripts/new-package.sh <name>` copies this directory into
+`packages/<name>/`, renames the payload files and rewrites every
+whole-word `example-pkg` to the new name.
 
 It sits **outside any `packages/` directory** on purpose: a template is
 not a package, and must never be versioned, tagged or published as one.
@@ -32,7 +33,7 @@ template/
 └── example-pkg.conf     # payload -> /etc/<name>.conf
 ```
 
-## After copying it
+## After scaffolding from it
 
 On an Arch machine:
 
