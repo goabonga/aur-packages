@@ -18,6 +18,7 @@ why it is `pkgbase` and not `pkgname`.
 
 ## Where to go next
 
+- [Packages](packages/index.md) — what this repository ships
 - [Get started](get-started.md) — requirements, add a package, check it
 - [Authoring a package](authoring.md) — the invariant and the rules
 

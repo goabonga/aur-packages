@@ -23,6 +23,9 @@ Made with <span style="color: #e25555;">&#10084;</span> by
 nav = [
   { "Home" = "index.md" },
   { "Get started" = "get-started.md" },
+  { "Packages" = [
+      { "Overview" = "packages/index.md" },
+  ] },
   { "Authoring a package" = "authoring.md" },
 ]
 
