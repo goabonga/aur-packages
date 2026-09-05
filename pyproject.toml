@@ -25,6 +25,7 @@ package = false
 # Tooling for the helper scripts under scripts/. Ruff lints and formats
 # them; there is no application code to type-check, so no mypy.
 dev = [
+    "pre-commit>=4.6.1",
     "ruff>=0.16.0",
 ]
 doc = [
