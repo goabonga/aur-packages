@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded pull-request runs; never cancel a run on main.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Repository hygiene: the helper scripts, the multicz configuration and
+  # the workflows themselves. Everything here acts on something that
+  # exists in the tree today.
+  # ---------------------------------------------------------------------
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: SPDX headers
+        run: |
+          python3 scripts/add_license_header.py --path scripts --types py,sh --check
+          python3 scripts/add_license_header.py --path . --types toml --check
+      - name: Lint the helper scripts
+        run: uv run --frozen --only-group dev ruff check --output-format=github scripts/
+      - name: Format check
+        run: uv run --frozen --only-group dev ruff format --check scripts/
+      - name: Shellcheck the helper scripts
+        # -x follows `source scripts/pkgdirs.sh`.
+        run: shellcheck -x scripts/*.sh
+      - name: Shellcheck every PKGBUILD in the tree
+        # lint-package.sh skips the makepkg-dependent checks when makepkg
+        # is missing, so on ubuntu this is exactly the shellcheck pass.
+        # The Arch-side checks run in the `template` job.
+        run: scripts/lint-package.sh
+      - name: Validate the multicz configuration
+        run: uv tool run multicz validate --strict
+      - name: Lint the workflows
+        # actionlint type-checks expressions, the needs graph and matrix
+        # references, and runs shellcheck over every `run:` block - where
+        # the script-injection class of bug lives.
+        env:
+          ACTIONLINT_VERSION: 1.7.7
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /tmp actionlint
+          /tmp/actionlint -color .github/workflows/*.yml
+      - name: Write step summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="pass - headers, ruff, shellcheck, multicz and actionlint are clean"
+          else
+            STATUS="fail - see annotations and logs"
+          fi
+          echo "## Checks: $STATUS" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
+  # The template, and the scaffolder that copies it.
+  #
+  # Scaffolds a throwaway package exactly the way the documentation tells
+  # a contributor to, then builds and installs the result. That exercises
+  # `template/`, `scripts/new-package.sh` and the documented workflow in
+  # one go - and it is the only coverage either of them has.
+  # ---------------------------------------------------------------------
+  template:
+    name: template
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Prepare the container
+        run: |
+          set -euo pipefail
+          # uv is needed because new-package.sh finishes by running
+          # `multicz validate --strict` on what it produced - the job
+          # exercises the documented flow, so it needs the tools the flow
+          # documents.
+          pacman -Syu --noconfirm --needed git namcap pacman-contrib shellcheck uv
+          # makepkg refuses to run as root, by design.
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+      - uses: actions/checkout@v7
+      - name: Scaffold a package from the template
+        env:
+          # A name no real package will take, so a leftover cannot collide.
+          PKG: ci-template-check
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          scripts/new-package.sh "$PKG"
+      - name: Refresh checksums and regenerate .SRCINFO
+        # The copy renamed the payload files, so the inherited checksums
+        # no longer describe them. These are the documented next steps.
+        env:
+          PKG: ci-template-check
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          cd "packages/$PKG"
+          su builder -c 'updpkgsums'
+          su builder -c 'makepkg --printsrcinfo' > .SRCINFO.new
+          mv .SRCINFO.new .SRCINFO
+      - name: The scaffolded package passes the local checks
+        # As builder, like every other step here: lint-package.sh calls
+        # makepkg, and makepkg refuses to run as root.
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          su builder -c 'scripts/lint-package.sh ci-template-check'
+      - name: Build, install and remove it
+        env:
+          PKG: ci-template-check
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          cd "packages/$PKG"
+          su builder -c 'makepkg -sf --noconfirm --needed'
+          output=$(namcap ./*.pkg.tar.zst || true)
+          printf '%s\n' "$output"
+          if printf '%s\n' "$output" | grep -q ' E: '; then
+            echo "::error::namcap reported errors on a package built from the template"
+            exit 1
+          fi
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          pacman -Qi "$PKG"
+          # A package that builds but installs nothing is a real failure
+          # mode: wrong install paths produce a valid, empty archive.
+          files=$(pacman -Qlq "$PKG" | grep -vE '/$' || true)
+          if [ -z "$files" ]; then
+            echo "::error::$PKG installed no files"
+            exit 1
+          fi
+          printf '%s\n' "$files"
+          pacman -Rns --noconfirm "$PKG"
+      - name: Write step summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="pass - the template still scaffolds a package that builds and installs"
+          else
+            STATUS="fail - template/ or scripts/new-package.sh is broken (see logs)"
+          fi
+          echo "## Template: $STATUS" >> "$GITHUB_STEP_SUMMARY"
