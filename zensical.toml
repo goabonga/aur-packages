@@ -84,7 +84,7 @@ generator = false
 # `bump_files`, so a docs release writes the site version here. The site
 # never renders the number - the point is that the docs get a tag.
 [project.extra.versions]
-docs = "0.0.0"
+docs = "0.1.0"
 
 
 [project.markdown_extensions.abbr]

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "git_head": "114d96316528c333bd681cb289fd539c3ba2fc2e",
+  "git_head_short": "114d963",
+  "timestamp": "2026-09-05T11:59:02Z",
+  "components": {
+    "linux-hardened-usbgadget": {
+      "version": "0.1.0",
+      "tag": "linux-hardened-usbgadget-v0.1.0",
+      "tag_sha": null
+    },
+    "docs": {
+      "version": "0.1.0",
+      "tag": "docs-v0.1.0",
+      "tag_sha": null
+    }
+  }
+}
