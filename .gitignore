@@ -16,3 +16,7 @@ src/
 # clean clone; nothing else in there is.
 /.multicz/*
 !/.multicz/state.json
+
+# Byte-code from the helper scripts.
+__pycache__/
+*.py[cod]
