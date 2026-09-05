@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+name: New package
+description: Propose a package this repository should ship
+labels: ["new-package"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository holds the packages the maintainer actually runs.
+        A proposal is most likely to land if it is something that has no
+        maintained AUR entry, or one that is orphaned or broken.
+
+  - type: input
+    id: pkgname
+    attributes:
+      label: Proposed pkgname
+      description: >
+        Lowercase alphanumerics plus @ . _ + - and no leading hyphen or
+        dot. This becomes the directory, the multicz component, the
+        commit scope and the AUR repository name - all the same string.
+      placeholder: gpd-pocket-sensors
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What it packages, and why it belongs here
+    validations:
+      required: true
+
+  - type: dropdown
+    id: specificity
+    attributes:
+      label: Is it specific to the GPD Pocket 1?
+      options:
+        - "Yes - it only makes sense on that machine"
+        - "No - it is a general Arch package"
+    validations:
+      required: true
+
+  - type: input
+    id: existing
+    attributes:
+      label: Existing AUR entry, if any
+      description: Link it, and say why it is not sufficient (orphaned, broken, unmaintained).
+
+  - type: input
+    id: upstream
+    attributes:
+      label: Upstream source
+      placeholder: https://github.com/...
