@@ -27,6 +27,8 @@ nav = [
       { "Overview" = "packages/index.md" },
   ] },
   { "Authoring a package" = "authoring.md" },
+  { "Versioning and release" = "releasing.md" },
+  { "Pipeline" = "pipeline.md" },
 ]
 
 [project.theme]
