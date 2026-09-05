@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+# Dependabot v2 configuration.
+#
+# Two ecosystems, and neither can trigger a package release:
+#
+#   uv              the `dev`, `doc` and `favicon` dependency-groups -
+#                   ruff, pre-commit, Zensical, cairosvg. Tooling only;
+#                   this repository ships PKGBUILDs, not Python.
+#   github-actions  the pinned actions in .github/workflows/.
+#
+# The commit messages Dependabot produces are placeholders. The
+# `dependabot-rewrite` workflow re-classifies each commit from the files
+# it touches and rewrites the prefix:
+#
+#     .github/workflows/*.yml  ->  ci:
+#     everything else          ->  chore(deps):
+#
+# Neither type appears in `[project.bump_rules]`, which is deliberate: a
+# Zensical bump changes no package and must never push to the AUR.
+#
+# The rewrite also strips Dependabot's `Co-authored-by:` trailer, which
+# this repository forbids, and re-signs the commits with the maintainer's
+# GPG key. With `GPG_PRIVATE_KEY` / `GPG_PASSPHRASE` unset the PR ships
+# unmodified.
+#
+# What Dependabot cannot watch: the upstream software the PKGBUILDs
+# package. Nothing understands `pkgver` as a dependency, so a new
+# upstream release is noticed by hand or by a tool outside this file.
+
+version: 2
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # One PR for the whole toolchain rather than one per package: none
+      # of it ships, so reviewing them together costs less attention.
+      dev-tools:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
