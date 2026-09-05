@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+
+# multicz.toml - per-component versioning, changelogs and tags, driven by
+# Conventional Commits. Docs: https://goabonga.github.io/multicz/
+#
+# The invariant every package added here has to satisfy:
+#
+#     packages/<name>/  ==  pkgbase  ==  [components.<name>]
+#                       ==  the commit scope
+#                       ==  the AUR repository name
+#
+# `fix(gpd-pocket-config): ...` is then the single input that routes a
+# bump to packages/gpd-pocket-config and, from there, to
+# ssh://aur@aur.archlinux.org/gpd-pocket-config.git.
+#
+# pkgbase rather than pkgname, because a split package declares an array
+# of pkgnames and only pkgbase identifies the source package.
+
+[project]
+commit_convention = "conventional"
+tag_format = "{component}-v{version}"
+initial_version = "0.0.0"
+# Persist the last released version per component so
+# `multicz validate --strict` can report drift.
+state_file = ".multicz/state.json"
+# Repository-wide changelog on top of the per-component ones: a release
+# that moves several components gets one entry listing all of them.
+root_changelog = "CHANGELOG.md"
+
+# Conventional types that move a version. Deliberately narrow: docs,
+# style, test, chore and refactor touch tracked paths constantly without
+# changing what pacman installs, and a release costs a push to a
+# repository other people's tooling polls.
+#
+# `build` is the packaging-specific one: a change to how a package is
+# assembled that ships no new upstream code - a corrected `depends`, a
+# fixed install path. On Arch that is exactly what `pkgrel` is for.
+[project.bump_rules]
+feat = "minor"
+fix = "patch"
+perf = "patch"
+build = "patch"
+revert = "patch"
+
+[[project.changelog_sections]]
+title = "Added"
+types = ["feat"]
+
+[[project.changelog_sections]]
+title = "Fixed"
+types = ["fix"]
+
+[[project.changelog_sections]]
+title = "Packaging"
+types = ["build"]
+
+[[project.changelog_sections]]
+title = "Performance"
+types = ["perf"]
+
+# The Zensical site is a release-tracked component: it has a version, a
+# tag and a changelog, so "did the docs move?" is a tag-aware question
+# answered by the same planner that will answer it for packages. Its
+# release is the GitHub Pages deploy; it ships no artifact.
+#
+# `bump_rules` here MERGES into `[project.bump_rules]`, adding `docs` on
+# top of the inherited feat/fix/perf/build/revert. A `docs:` commit
+# therefore bumps this component and nothing else.
+[components.docs]
+paths = ["docs/**", "zensical.toml"]
+bump_files = [
+    { file = "zensical.toml", key = "project.extra.versions.docs" },
+]
+bump_rules = { docs = "patch" }

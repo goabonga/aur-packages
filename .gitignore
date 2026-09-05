@@ -11,3 +11,8 @@ src/
 
 # uv virtualenv for the docs build.
 /.venv/
+
+# multicz state is committed on purpose so drift detection works from a
+# clean clone; nothing else in there is.
+/.multicz/*
+!/.multicz/state.json

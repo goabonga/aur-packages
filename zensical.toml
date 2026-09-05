@@ -72,6 +72,12 @@ toggle.name = "Switch to dark mode"
 [project.extra]
 generator = false
 
+# Owned by multicz: the `docs` component lists this key in its
+# `bump_files`, so a docs release writes the site version here. The site
+# never renders the number - the point is that the docs get a tag.
+[project.extra.versions]
+docs = "0.0.0"
+
 
 [project.markdown_extensions.abbr]
 [project.markdown_extensions.admonition]
