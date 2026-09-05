@@ -25,6 +25,7 @@ nav = [
   { "Get started" = "get-started.md" },
   { "Packages" = [
       { "Overview" = "packages/index.md" },
+      { "linux-hardened-usbgadget" = "packages/linux-hardened-usbgadget.md" },
   ] },
   { "Authoring a package" = "authoring.md" },
   { "Versioning and release" = "releasing.md" },

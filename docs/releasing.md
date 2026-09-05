@@ -50,6 +50,8 @@ AUR only notices if `pkgrel` (or `pkgver`) moved with it. So
 `aur-publish` **fails** when a released package's AUR content is
 unchanged, rather than pushing nothing and reporting success.
 
+`linux-hardened-usbgadget` is of this second kind.
+
 ## What happens on a push to `main`
 
 1. **`detect`** asks `multicz changed` which components moved since their

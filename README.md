@@ -36,7 +36,9 @@ released.
 
 ## Packages
 
-_No packages yet - see [Add a package](#add-a-package)._
+| Package | AUR | What it is |
+| --- | --- | --- |
+| [`linux-hardened-usbgadget`](packages/linux-hardened-usbgadget) | [AUR](https://aur.archlinux.org/packages/linux-hardened-usbgadget) | `linux-hardened` rebuilt with USB dual-role (OTG) and the gadget stack |
 
 ## Add a package
 

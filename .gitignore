@@ -5,6 +5,20 @@ src/
 *.pkg.tar.zst.sig
 *.src.tar.gz
 
+# Upstream sources makepkg downloads into the package directory. A
+# package's own files - the ones named in source=() without a URL - are
+# committed next to the PKGBUILD and do not match these patterns; a
+# kernel tarball is 150 MB and must never reach the history.
+#
+# `git status --ignored` after a build is the way to check nothing that
+# should be tracked was caught here.
+/packages/*/*.tar.*
+/packages/*/*.zip
+/packages/*/*.sig
+/packages/*/*.sign
+/packages/*/*.patch
+/packages/*/config.*
+
 # Zensical build output and its build cache.
 /site/
 /.cache/

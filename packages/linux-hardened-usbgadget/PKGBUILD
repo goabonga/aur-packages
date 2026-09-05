@@ -1,0 +1,315 @@
+# SPDX-License-Identifier: MIT
+# Maintainer: Chris <goabonga@pm.me>
+#
+# Arch's linux-hardened, rebuilt with USB dual-role (OTG) and the gadget
+# stack enabled, for the GPD Pocket 1.
+#
+# Everything outside prepare() is Arch's linux-hardened packaging, kept
+# deliberately close to upstream so a version bump is a mechanical
+# rebase: the sources, the config and the packaging functions all come
+# from the same tag. The single deviation is the Kconfig fragment merged
+# in prepare(), and the docs subpackage is dropped - it is identical to
+# the stock kernel's and doubles the build time.
+#
+# It installs alongside linux-hardened rather than replacing it: its
+# modules live under its own pkgbase, so a kernel that fails to boot
+# leaves the stock one to fall back to.
+#
+# pkgver tracks upstream. multicz does NOT own it: pkgrel has to remain a
+# positive integer and a semantic version is not one, so both are
+# maintained by hand. See CONTRIBUTING.md, "Packaging rules".
+
+pkgbase=linux-hardened-usbgadget
+pkgver=7.1.9.hardened1
+pkgrel=1
+pkgdesc='Security-Hardened Linux with USB dual-role and gadget support'
+url='https://github.com/anthraxx/linux-hardened'
+arch=(x86_64)
+license=(GPL-2.0-only)
+# Upstream's list minus the htmldocs group, which this package does not
+# build, plus initramfs and kmod.
+#
+# Those two are the one deliberate divergence from upstream here. namcap
+# requires everything a subpackage depends on to be available at build
+# time, and Arch's own linux-hardened trips that check - `namcap
+# PKGBUILD` on the official package reports the same two names. Adding
+# them costs two small packages in the build container and keeps the
+# namcap gate strict, which is what caught binutils and xxhash missing
+# from an earlier trim of this list.
+makedepends=(
+  bc
+  binutils
+  cpio
+  gettext
+  glibc
+  initramfs
+  libelf
+  kmod
+  libgcc
+  openssl
+  pahole
+  perl
+  python
+  rust
+  rust-bindgen
+  rust-src
+  tar
+  xxhash
+  xz
+  zlib
+  zstd
+)
+options=(
+  !debug
+  !strip
+)
+
+_srcname=linux-${pkgver%.*}
+_srctag=v${pkgver%.*}-${pkgver##*.}
+_upstream=linux-hardened
+source=(
+  https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/${_srcname}.tar.{xz,sign}
+  ${url}/releases/download/${_srctag}/${_upstream}-${_srctag}.patch{,.sig}
+  usbgadget.config
+)
+# Arch's own configuration for this exact release, pinned to the tag that
+# produced it. Fetched rather than vendored: a 12 000-line kernel config
+# copied into this repository would drift silently, and the only correct
+# value for it is whatever Arch shipped.
+source_x86_64=(
+  "config.x86_64::https://gitlab.archlinux.org/archlinux/packaging/packages/${_upstream}/-/raw/${pkgver}-2/config.x86_64"
+)
+validpgpkeys=(
+  ABAF11C65A2970B130ABE3C479BE3E4300411886  # Linus Torvalds
+  647F28654894E3BD457199BE38DBBDC86092693E  # Greg Kroah-Hartman
+  E240B57E2C4630BA768E2F26FC1B547C8D8172C8  # Levente Polyak
+)
+sha256sums=('3271a4ae3897b38352980f2b0975bae61bca81c644d186221c5ae928bcc072b0'
+            'SKIP'
+            'd01875867f028b58aabf93d7e324107bb2ced90a4eae18388441fb898754604b'
+            'SKIP'
+            'e19dc03fee74755664f983b19de4ab56ff849d3112526e8c8465e3a7ddc4f594')
+sha256sums_x86_64=('0f140679412714ba8b5bb97855110d16f06d9616cafcc0119fad7fd69c9721b0')
+
+export KBUILD_BUILD_HOST=archlinux
+export KBUILD_BUILD_USER=$pkgbase
+export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+
+prepare() {
+  cd $_srcname
+
+  echo "Setting version..."
+  echo "-$pkgrel" > localversion.10-pkgrel
+  echo "${pkgbase#linux}" > localversion.20-pkgname
+
+  local src
+  for src in "${source[@]}"; do
+    src="${src%%::*}"
+    src="${src##*/}"
+    src="${src%.zst}"
+    [[ $src = *.patch ]] || continue
+    echo "Applying patch $src..."
+    patch -Np1 < "../$src"
+  done
+
+  echo "Setting config..."
+  cp ../config.$CARCH .config
+
+  # The only deviation from stock linux-hardened. merge_config.sh is the
+  # kernel's own fragment merger, so an option the tree does not have is
+  # reported rather than silently dropped; `make olddefconfig` then pulls
+  # in whatever the new options select.
+  echo "Merging USB gadget fragment..."
+  scripts/kconfig/merge_config.sh -m .config ../usbgadget.config
+
+  make olddefconfig
+
+  echo "Config deltas against stock linux-hardened:"
+  diff -u ../config.$CARCH .config || :
+
+  # Fail loudly rather than shipping a kernel that quietly lacks the one
+  # thing this package exists for. Anything the merge dropped - a renamed
+  # symbol after a version bump, an option whose dependencies went away -
+  # is caught here instead of on the machine that cannot use its port.
+  local opt
+  for opt in CONFIG_USB_GADGET CONFIG_USB_DWC3_DUAL_ROLE CONFIG_USB_CONFIGFS \
+             CONFIG_USB_ROLE_SWITCH; do
+    if ! grep -qE "^${opt}=[ym]$" .config; then
+      echo "ERROR: $opt is not enabled in the final config" >&2
+      return 1
+    fi
+  done
+
+  make -s kernelrelease > version
+  echo "Prepared $pkgbase version $(<version)"
+}
+
+build() {
+  cd $_srcname
+  # No htmldocs: the documentation is identical to the stock kernel's and
+  # building it roughly doubles the wall clock.
+  make all
+  make -C tools/bpf/bpftool vmlinux.h feature-clang-bpf-co-re=1
+}
+
+_package() {
+  pkgdesc="The $pkgdesc kernel and modules"
+  depends=(
+    coreutils
+    initramfs
+    kmod
+  )
+  optdepends=(
+    "$pkgbase-headers: headers and scripts for building modules"
+    'linux-firmware: firmware images needed for some devices'
+    'wireless-regdb: to set the correct wireless channels of your country'
+  )
+  provides=(
+    KSMBD-MODULE
+    NTSYNC-MODULE
+    VIRTUALBOX-GUEST-MODULES
+    WIREGUARD-MODULE
+  )
+
+  cd $_srcname
+  local modulesdir="$pkgdir/usr/lib/modules/$(<version)"
+
+  echo "Installing boot image..."
+  # systemd expects to find the kernel here to allow hibernation
+  install -Dm644 "$(make -s image_name)" "$modulesdir/vmlinuz"
+
+  # Used by mkinitcpio to name the kernel
+  echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
+
+  echo "Installing modules..."
+  ZSTD_CLEVEL=19 make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
+    DEPMOD=/doesnt/exist modules_install  # Suppress depmod
+
+  # remove build link
+  rm "$modulesdir"/build
+}
+
+_package-headers() {
+  pkgdesc="Headers and scripts for building modules for the $pkgdesc kernel"
+  depends=(
+    binutils
+    glibc
+    libelf
+    libgcc
+    openssl
+    pahole
+    xxhash
+    zlib
+    zstd
+  )
+  provides=(LINUX-HEADERS)
+
+  cd $_srcname
+  local builddir="$pkgdir/usr/lib/modules/$(<version)/build"
+
+  local karch
+  case $CARCH in
+    x86_64) karch=x86 ;;
+    *) echo "Unknown CARCH $CARCH"; exit 1 ;;
+  esac
+
+  echo "Installing build files..."
+  install -Dt "$builddir" -m644 .config Makefile Module.symvers System.map \
+    localversion.* version vmlinux tools/bpf/bpftool/vmlinux.h
+  install -Dt "$builddir/kernel" -m644 kernel/Makefile
+  install -Dt "$builddir/arch/$karch" -m644 arch/$karch/Makefile
+  cp -t "$builddir" -a scripts
+  ln -srt "$builddir" "$builddir/scripts/gdb/vmlinux-gdb.py"
+
+  if [[ $(scripts/config -s CONFIG_HAVE_STACK_VALIDATION) = y ]]; then
+    install -Dt "$builddir/tools/objtool" tools/objtool/objtool
+  fi
+
+  if [[ $(scripts/config -s CONFIG_DEBUG_INFO_BTF_MODULES) = y ]]; then
+    install -Dt "$builddir/tools/bpf/resolve_btfids" tools/bpf/resolve_btfids/resolve_btfids
+  fi
+
+  echo "Installing headers..."
+  cp -t "$builddir" -a include
+  cp -t "$builddir/arch/$karch" -a arch/$karch/include
+  install -Dt "$builddir/arch/$karch/kernel" -m644 arch/$karch/kernel/asm-offsets.s
+
+  install -Dt "$builddir/drivers/md" -m644 drivers/md/*.h
+  install -Dt "$builddir/net/mac80211" -m644 net/mac80211/*.h
+
+  # https://bugs.archlinux.org/task/13146
+  install -Dt "$builddir/drivers/media/i2c" -m644 drivers/media/i2c/msp3400-driver.h
+
+  # https://bugs.archlinux.org/task/20402
+  install -Dt "$builddir/drivers/media/usb/dvb-usb" -m644 drivers/media/usb/dvb-usb/*.h
+  install -Dt "$builddir/drivers/media/dvb-frontends" -m644 drivers/media/dvb-frontends/*.h
+  install -Dt "$builddir/drivers/media/tuners" -m644 drivers/media/tuners/*.h
+
+  # https://bugs.archlinux.org/task/71392
+  install -Dt "$builddir/drivers/iio/common/hid-sensors" -m644 drivers/iio/common/hid-sensors/*.h
+
+  echo "Installing KConfig files..."
+  find . -name 'Kconfig*' -exec install -Dm644 {} "$builddir/{}" \;
+
+  if [[ $(scripts/config -s CONFIG_RUST) = y ]]; then
+    echo "Installing Rust files..."
+    install -Dt "$builddir/rust" -m644 rust/*.rmeta
+    install -Dt "$builddir/rust" rust/*.so
+  fi
+
+  echo "Installing unstripped VDSO..."
+  make INSTALL_MOD_PATH="$pkgdir/usr" vdso_install \
+    link=  # Suppress build-id symlinks
+
+  echo "Removing unneeded architectures..."
+  local arch
+  for arch in "$builddir"/arch/*/; do
+    [[ $arch = */$karch/ ]] && continue
+    echo "Removing $(basename "$arch")"
+    rm -r "$arch"
+  done
+
+  echo "Removing documentation..."
+  rm -r "$builddir/Documentation"
+
+  echo "Removing broken symlinks..."
+  find -L "$builddir" -type l -printf 'Removing %P\n' -delete
+
+  echo "Removing loose objects..."
+  find "$builddir" -type f -name '*.o' -printf 'Removing %P\n' -delete
+
+  echo "Stripping build tools..."
+  local file
+  while read -rd '' file; do
+    case "$(file -Sib "$file")" in
+      application/x-sharedlib\;*)      # Libraries (.so)
+        strip -v $STRIP_SHARED "$file" ;;
+      application/x-archive\;*)        # Libraries (.a)
+        strip -v $STRIP_STATIC "$file" ;;
+      application/x-executable\;*)     # Binaries
+        strip -v $STRIP_BINARIES "$file" ;;
+      application/x-pie-executable\;*) # Relocatable binaries
+        strip -v $STRIP_SHARED "$file" ;;
+    esac
+  done < <(find "$builddir" -type f -perm -u+x ! -name vmlinux -print0)
+
+  echo "Stripping vmlinux..."
+  strip -v $STRIP_STATIC "$builddir/vmlinux"
+
+  echo "Adding symlink..."
+  mkdir -p "$pkgdir/usr/src"
+  ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
+}
+
+pkgname=(
+  "$pkgbase"
+  "$pkgbase-headers"
+)
+for _p in "${pkgname[@]}"; do
+  eval "package_$_p() {
+    $(declare -f "_package${_p#"$pkgbase"}")
+    _package${_p#"$pkgbase"}
+  }"
+done
+
+# vim:set ts=8 sts=2 sw=2 et:

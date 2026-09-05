@@ -37,7 +37,7 @@ So `ci` runs only the cheap metadata checks, and building is a separate
 manual workflow:
 
 ```
-Actions → build-package → Run workflow → package: <name>
+Actions → build-package → Run workflow → package: linux-hardened-usbgadget
 ```
 
 It frees the runner's preinstalled toolchains (~25 GB) first, because a
