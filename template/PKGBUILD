@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT
+# Maintainer: Chris <goabonga@pm.me>
+#
+# The template every package in goabonga/aur-packages is copied from.
+# Copy this directory, rename it and its payload files, and replace
+# `example-pkg` throughout with the real package name.
+#
+# It sits outside any packages/ directory on purpose: a template is not a
+# package. `example-pkg` is a placeholder, not something anyone installs.
+#
+# `pkgrel` resets to 1 whenever `pkgver` changes, and is bumped on its own
+# for a rebuild that ships identical sources (a soname rebuild, a
+# packaging-only fix).
+
+pkgname=example-pkg
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="TODO one line describing what this package installs"
+arch=('any')
+url="https://github.com/goabonga/aur-packages"
+license=('MIT')
+depends=('bash')
+install="${pkgname}.install"
+backup=('etc/example-pkg.conf')
+# Sources live next to the PKGBUILD and are committed to the AUR
+# repository alongside it, so no download happens at build time. Their
+# checksums are real (never SKIP): regenerate with `updpkgsums` after
+# touching any of them.
+source=("${pkgname}.sh"
+        "${pkgname}.conf"
+        'LICENSE')
+sha256sums=('252099dd4f659d3ac684e55b8e65e1a49c513412be178aa9b96127805333295c'
+            '035efd17c1a60cd6f03bca9657864efa80a544b21b5fadc279cd86c7eeed48b2'
+            '02fde8f33d605243e384f7e46c9036d99ba52a6516307e381f295e14c443104e')
+
+package() {
+    install -Dm755 "${srcdir}/${pkgname}.sh" "${pkgdir}/usr/bin/${pkgname}"
+    install -Dm644 "${srcdir}/${pkgname}.conf" "${pkgdir}/etc/${pkgname}.conf"
+    install -Dm644 "${srcdir}/LICENSE" \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

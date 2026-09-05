@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Chris <goabonga@pm.me>
+#
+# pacman scriptlet. Kept deliberately minimal: it prints guidance and
+# never edits files behind the user's back. Anything that mutates system
+# state belongs in a systemd unit the user enables explicitly, not here.
+
+post_install() {
+    cat <<'MSG'
+==> example-pkg installed.
+    Configuration: /etc/example-pkg.conf
+    Run:           example-pkg
+MSG
+}
+
+post_upgrade() {
+    cat <<'MSG'
+==> example-pkg upgraded.
+    Check for /etc/example-pkg.conf.pacnew if you edited the config.
+MSG
+}

@@ -1,0 +1,6 @@
+# makepkg build output, wherever a package is built from this tree.
+pkg/
+src/
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+*.src.tar.gz

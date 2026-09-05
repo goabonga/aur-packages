@@ -1,0 +1,18 @@
+pkgbase = example-pkg
+	pkgdesc = TODO one line describing what this package installs
+	pkgver = 0.0.0
+	pkgrel = 1
+	url = https://github.com/goabonga/aur-packages
+	install = example-pkg.install
+	arch = any
+	license = MIT
+	depends = bash
+	backup = etc/example-pkg.conf
+	source = example-pkg.sh
+	source = example-pkg.conf
+	source = LICENSE
+	sha256sums = 252099dd4f659d3ac684e55b8e65e1a49c513412be178aa9b96127805333295c
+	sha256sums = 035efd17c1a60cd6f03bca9657864efa80a544b21b5fadc279cd86c7eeed48b2
+	sha256sums = 02fde8f33d605243e384f7e46c9036d99ba52a6516307e381f295e14c443104e
+
+pkgname = example-pkg
