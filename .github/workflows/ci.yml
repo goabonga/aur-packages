@@ -161,15 +161,136 @@ jobs:
           echo "## Template: $STATUS" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------
+  # Which packages changed?
+  #
+  # Asked of multicz rather than computed from a path diff, and the
+  # difference matters on main: a path diff answers "what did this push
+  # touch?", while `multicz changed` with no --since compares each
+  # component against its OWN last tag, which answers "what is
+  # unreleased?". That is the question the release job asks minutes
+  # later, so asking it here keeps the tested set and the released set
+  # identical - a package whose previous release failed still gets
+  # rechecked.
+  # ---------------------------------------------------------------------
+  detect:
+    name: detect changed packages
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.changed.outputs.packages }}
+      has_packages: ${{ steps.changed.outputs.has_packages }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+      - name: Install multicz
+        run: uv tool install multicz
+      - id: changed
+        name: Compute changed components
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            ALL=$(uv tool run multicz changed --since "origin/$BASE_REF" --output json | jq -c '.changed')
+          else
+            ALL=$(uv tool run multicz changed --output json | jq -c '.changed')
+          fi
+          # `docs` is tracked by multicz but owns no packages/ tree, so
+          # the per-package matrix cannot walk it. It has its own job.
+          PACKAGES=$(echo "$ALL" | jq -c 'map(select(. != "docs"))')
+          if [ "$PACKAGES" = "[]" ] || [ -z "$PACKAGES" ]; then
+            HAS=false
+          else
+            HAS=true
+          fi
+          {
+            echo "packages=$PACKAGES"
+            echo "has_packages=$HAS"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Detected changes"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Packages | \`$PACKAGES\` |"
+            echo "| Event | \`$EVENT\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
+  # Per-package metadata checks, over ONLY the packages that changed.
+  #
+  # Everything here is cheap: no package is built. That is deliberate -
+  # the AUR distributes sources, not binaries, so nothing downstream of
+  # this needs a compiled artefact, and one of these packages is a
+  # kernel. Building it is an hour of wall clock, so it lives behind the
+  # manual `build-package` workflow instead of running on every push.
+  # ---------------------------------------------------------------------
+  package:
+    name: package (${{ matrix.package }})
+    needs: detect
+    if: needs.detect.outputs.has_packages == 'true'
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.detect.outputs.packages) }}
+    steps:
+      - name: Prepare the container
+        run: |
+          set -euo pipefail
+          pacman -Syu --noconfirm --needed git namcap shellcheck
+          # makepkg refuses to run as root, by design.
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+      - uses: actions/checkout@v7
+      - name: Check the package
+        # shellcheck, .SRCINFO drift and namcap. The checksum check needs
+        # the sources, which the next step fetches.
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          su builder -c "scripts/lint-package.sh ${{ matrix.package }}"
+      - name: Verify the committed checksums against upstream
+        # Downloads every declared source and hashes it. This is the step
+        # that catches a pkgver bumped without refreshing sha256sums.
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          cd "packages/${{ matrix.package }}"
+          su builder -c 'makepkg --verifysource --noconfirm --skippgpcheck'
+      - name: Write step summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="pass - metadata, .SRCINFO and checksums are consistent"
+          else
+            STATUS="fail - see logs"
+          fi
+          echo "## Package - \`${{ matrix.package }}\`: $STATUS" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
   # Release. Bumps every component the planner says moved, writes the
   # changelogs, commits, tags and pushes. Today the only component is the
   # documentation site; packages add themselves as they land.
   # ---------------------------------------------------------------------
   release:
     name: release
-    needs: [checks, template]
+    needs: [checks, template, detect, package]
+    # `package` is skipped when no package changed, and a skipped `needs`
+    # would normally skip this job too. `!cancelled()` lifts that, which
+    # means the failure check has to be spelled out explicitly rather
+    # than implied by `needs`.
     if: >-
-      github.event_name == 'push'
+      !cancelled()
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && github.event_name == 'push'
       && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -177,6 +298,10 @@ jobs:
     outputs:
       no_bumps: ${{ steps.bump.outputs.no_bumps }}
       bumped: ${{ steps.bump.outputs.bumped }}
+      # `bumped` minus `docs`, which has no AUR repository. This is what
+      # the aur-publish matrix expands over; on a docs-only release it is
+      # empty and that job does not run.
+      bumped_pkg_json: ${{ steps.bump.outputs.bumped_pkg_json }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -245,6 +370,7 @@ jobs:
           fi
           {
             echo "bumped=$(echo "$PLAN" | jq -r '.bumps | keys | join(" ")')"
+            echo "bumped_pkg_json=$(echo "$PLAN" | jq -c '.bumps | keys | map(select(. != "docs"))')"
             echo "no_bumps=$NO_BUMPS"
           } >> "$GITHUB_OUTPUT"
       - name: Write step summary
@@ -265,6 +391,200 @@ jobs:
             echo ""
             echo "Signed: \`${{ steps.gpg.outputs.available }}\`."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
+  # Publish each released package to its own AUR repository.
+  #
+  # Nothing is built here: the AUR distributes sources. The job pushes
+  # the PKGBUILD, the .SRCINFO and the committed source files, which is
+  # all an AUR repository holds.
+  #
+  # One job per package (`fail-fast: false`): if the AUR rejects one, the
+  # others still ship and the failed one is re-runnable on its own. Each
+  # gets its own `aur-<name>` environment, so a required reviewer can
+  # gate one package without gating the rest.
+  # ---------------------------------------------------------------------
+  aur-publish:
+    name: aur-publish (${{ matrix.package }})
+    needs: release
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.release.result == 'success'
+      && needs.release.outputs.no_bumps == 'false'
+      && needs.release.outputs.bumped_pkg_json != '[]'
+      && needs.release.outputs.bumped_pkg_json != ''
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.release.outputs.bumped_pkg_json) }}
+    environment:
+      name: aur-${{ matrix.package }}
+      url: https://aur.archlinux.org/packages/${{ matrix.package }}
+    permissions:
+      contents: write       # gh release create
+    steps:
+      - name: Prepare the container
+        run: |
+          set -euo pipefail
+          pacman -Syu --noconfirm --needed git openssh github-cli uv
+          useradd -m builder
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # The release commit and tags multicz just pushed.
+          ref: main
+      - name: Read the version being published
+        id: version
+        env:
+          PKG: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          cd "packages/$PKG"
+          # Read from the PKGBUILD, not from the release outputs: this is
+          # the file that gets pushed, so it is the only version that
+          # cannot disagree with what ships.
+          pkgver=$(sed -n 's/^pkgver=\(.*\)$/\1/p' PKGBUILD | tr -d "\"'")
+          pkgrel=$(sed -n 's/^pkgrel=\(.*\)$/\1/p' PKGBUILD | tr -d "\"'")
+          {
+            echo "pkgver=$pkgver"
+            echo "pkgrel=$pkgrel"
+          } >> "$GITHUB_OUTPUT"
+      - name: Regenerate .SRCINFO with makepkg
+        run: |
+          set -euo pipefail
+          chown -R builder .
+          cd "packages/${{ matrix.package }}"
+          su builder -c 'makepkg --printsrcinfo' > .SRCINFO.new
+          mv .SRCINFO.new .SRCINFO
+      - name: Detect AUR credentials
+        id: aur
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -n "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Configure SSH for the AUR
+        if: steps.aur.outputs.available == 'true'
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          # Optional repository variable holding the pinned host key lines
+          # for aur.archlinux.org. Set it to close the trust-on-first-use
+          # window below.
+          AUR_SSH_KNOWN_HOSTS: ${{ vars.AUR_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          if [ -n "${AUR_SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$AUR_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -t ed25519,rsa aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+            echo "::warning::AUR_SSH_KNOWN_HOSTS is not set - the host key was accepted on first use."
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+          EOF
+          chmod 600 ~/.ssh/config
+      - name: Push to the AUR
+        if: steps.aur.outputs.available == 'true'
+        env:
+          PKG: ${{ matrix.package }}
+          PKGVER: ${{ steps.version.outputs.pkgver }}
+          PKGREL: ${{ steps.version.outputs.pkgrel }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          # Through the environment, never interpolated: see the release
+          # job's "Configure git author" step.
+          AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+          AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "${AUTHOR_NAME:-github-actions[bot]}"
+          git config --global user.email "${AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
+          git config --global --add safe.directory '*'
+
+          # An AUR repository that does not exist yet is created by
+          # pushing to it, so a clone failure is the expected path for a
+          # brand-new package rather than an error.
+          if git clone "ssh://aur@aur.archlinux.org/${PKG}.git" /tmp/aur 2>/dev/null; then
+            echo "Cloned the existing AUR repository."
+          else
+            echo "No AUR repository yet - initialising ${PKG}."
+            mkdir -p /tmp/aur
+            git -C /tmp/aur init -q -b master
+            git -C /tmp/aur remote add origin "ssh://aur@aur.archlinux.org/${PKG}.git"
+          fi
+
+          # Replace the tracked content wholesale so a file deleted here
+          # is deleted there too. CHANGELOG.md and README.md stay behind:
+          # they are repository bookkeeping and link to paths that do not
+          # exist in the AUR clone.
+          find /tmp/aur -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          for f in "packages/${PKG}"/* "packages/${PKG}"/.SRCINFO; do
+            base=$(basename "$f")
+            case "$base" in
+              CHANGELOG.md|README.md|pkg|src|*.pkg.tar.zst|*.log) continue ;;
+            esac
+            cp -r "$f" /tmp/aur/
+          done
+
+          cd /tmp/aur
+          git add -A
+          if git diff --cached --quiet; then
+            # multicz released this component, so something in it changed -
+            # but nothing that reaches the AUR did. For a package whose
+            # pkgver tracks upstream that means pkgrel was not bumped, and
+            # the release is a no-op nobody would notice.
+            echo "::error::${PKG} was released but its AUR content is unchanged - bump pkgrel (or pkgver) so the release actually ships"
+            exit 1
+          fi
+          git commit -q -m "${PKG} ${PKGVER}-${PKGREL}
+
+          Released from https://github.com/${REPO} at ${SHA}."
+          git push origin HEAD:master
+          echo "Pushed ${PKG} ${PKGVER}-${PKGREL} to the AUR."
+      - name: Report the dry run
+        if: steps.aur.outputs.available != 'true'
+        run: |
+          {
+            echo "## AUR publish - \`${{ matrix.package }}\`: dry run"
+            echo ""
+            echo "\`AUR_SSH_PRIVATE_KEY\` is not set, so nothing was pushed."
+            echo "Version \`${{ steps.version.outputs.pkgver }}-${{ steps.version.outputs.pkgrel }}\`"
+            echo "is ready to publish once the secret exists."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PKG: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          version=$(uv tool run multicz get "$PKG")
+          tag="${PKG}-v${version}"
+          # Notes for this tag only: the package CHANGELOG accumulates
+          # every release, so attaching it whole would make the second
+          # release repeat the first.
+          uv tool run multicz release-notes --tag "$tag" > /tmp/notes.md
+          cat /tmp/notes.md
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists."
+          else
+            gh release create "$tag" \
+              --title "$PKG ${{ steps.version.outputs.pkgver }}-${{ steps.version.outputs.pkgrel }}" \
+              --notes-file /tmp/notes.md
+          fi
 
   # ---------------------------------------------------------------------
   # Deploy the site from the release commit, so what is published
