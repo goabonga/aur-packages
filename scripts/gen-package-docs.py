@@ -48,14 +48,20 @@ def render(package_dir: Path) -> str:
         rf"]({REPO_BLOB}/\1)",
         body,
     )
-    # `](../other-pkg/...)` -> the sibling package's generated page.
-    body = re.sub(r"\]\(\.\./([a-z0-9@._+-]+)/README\.md\)", r"](\1.md)", body)
-    # Files inside the package directory itself.
+    # Files inside the package directory itself. This runs BEFORE the
+    # sibling rule below, not after: the sibling rule rewrites
+    # `](../other-pkg/README.md)` to a bare `](other-pkg.md)`, which this
+    # pattern would then match again and bury under
+    # packages/<name>/. Ordering it first is what keeps the two
+    # independent - `../` is excluded here, so a sibling link passes
+    # through untouched and only the sibling rule sees it.
     body = re.sub(
         r"\]\((?!https?:|mailto:|#|\.\./)([^)]+)\)",
         rf"]({REPO_BLOB}/packages/{name}/\1)",
         body,
     )
+    # `](../other-pkg/README.md)` -> the sibling package's generated page.
+    body = re.sub(r"\]\(\.\./([a-z0-9@._+-]+)/README\.md\)", r"](\1.md)", body)
 
     return BANNER.format(name=name) + body
 
