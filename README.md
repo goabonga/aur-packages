@@ -42,6 +42,14 @@ assets after editing it:
 scripts/regen-icons.sh   # -> docs/aur-packages.svg, docs/favicon.ico
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, the commit
+convention and the packaging rules. By participating you agree to the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+Security issues: follow the process in [SECURITY.md](SECURITY.md).
+
 ## License
 
 Distributed under the [MIT License](LICENSE).
