@@ -159,3 +159,169 @@ jobs:
             STATUS="fail - template/ or scripts/new-package.sh is broken (see logs)"
           fi
           echo "## Template: $STATUS" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
+  # Release. Bumps every component the planner says moved, writes the
+  # changelogs, commits, tags and pushes. Today the only component is the
+  # documentation site; packages add themselves as they land.
+  # ---------------------------------------------------------------------
+  release:
+    name: release
+    needs: [checks, template]
+    if: >-
+      github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push the release commit and the tags
+    outputs:
+      no_bumps: ${{ steps.bump.outputs.no_bumps }}
+      bumped: ${{ steps.bump.outputs.bumped }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+      - name: Install multicz
+        run: uv tool install multicz
+      - name: Configure git author
+        # Both values come through the environment rather than being
+        # interpolated: a commit author name is attacker-chosen text, and
+        # ${{ }} is substituted before bash ever sees the line.
+        env:
+          AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+          AUTHOR_EMAIL: ${{ github.event.head_commit.author.email }}
+        run: |
+          git config user.name "${AUTHOR_NAME:-github-actions[bot]}"
+          git config user.email "${AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
+      - name: Detect GPG availability
+        # Secrets cannot be referenced from `if:`, so their presence is
+        # promoted to a step output. Unset means an unsigned release,
+        # not a failed one.
+        id: gpg
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ] && [ -n "$GPG_PASSPHRASE" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import and unlock the GPG key
+        if: steps.gpg.outputs.available == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          # Pre-cache the passphrase with a throwaway signature so
+          # `git commit -S` and `git tag -s` do not prompt.
+          echo test | gpg --batch --yes --passphrase "$GPG_PASSPHRASE" \
+            --pinentry-mode loopback --sign > /dev/null
+          KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+          git config user.signingkey "$KEY_ID"
+      - name: Plan the release
+        run: uv tool run multicz plan --summary "$GITHUB_STEP_SUMMARY"
+      - name: Bump, commit, tag and push
+        id: bump
+        env:
+          SIGN: ${{ steps.gpg.outputs.available }}
+        run: |
+          set -euo pipefail
+          if [ "$SIGN" = "true" ]; then
+            PLAN=$(uv tool run multicz bump --commit --tag --push --sign --output json)
+          else
+            PLAN=$(uv tool run multicz bump --commit --tag --push --output json)
+          fi
+          if [ "$(echo "$PLAN" | jq -r '.bumps | length')" = "0" ]; then
+            NO_BUMPS=true
+          else
+            NO_BUMPS=false
+          fi
+          {
+            echo "bumped=$(echo "$PLAN" | jq -r '.bumps | keys | join(" ")')"
+            echo "no_bumps=$NO_BUMPS"
+          } >> "$GITHUB_OUTPUT"
+      - name: Write step summary
+        if: always()
+        run: |
+          if [ "${{ steps.bump.outputs.no_bumps }}" = "true" ]; then
+            echo "## Release: nothing to bump" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## Release: tags pushed"
+            echo ""
+            echo "| Component | Version |"
+            echo "| --- | --- |"
+            for c in ${{ steps.bump.outputs.bumped }}; do
+              echo "| \`$c\` | \`$(uv tool run multicz get "$c")\` |"
+            done
+            echo ""
+            echo "Signed: \`${{ steps.gpg.outputs.available }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------
+  # Deploy the site from the release commit, so what is published
+  # describes the tree that was actually released rather than the tree
+  # that triggered CI.
+  # ---------------------------------------------------------------------
+  docs:
+    name: docs
+    needs: release
+    if: >-
+      !cancelled()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The release commit multicz just pushed.
+          ref: main
+      - uses: actions/configure-pages@v6
+        with:
+          enablement: true
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+      - name: Install Zensical
+        # --only-group doc installs the locked Zensical without the dev
+        # group, so a Zensical release cannot break Pages between two
+        # unrelated pushes.
+        run: uv sync --frozen --only-group doc
+      - name: Build the site
+        run: uv run zensical build --clean
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v5
+      - name: Write step summary
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            {
+              echo "## Docs deployed"
+              echo ""
+              echo "Bumped this run: \`${{ needs.release.outputs.bumped }}\`"
+              echo ""
+              echo "Site: ${{ steps.deployment.outputs.page_url }}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Docs deployment failed (see logs)" >> "$GITHUB_STEP_SUMMARY"
+          fi
