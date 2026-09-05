@@ -7,6 +7,10 @@
   <em>The AUR packages I run on my Arch Linux GPD Pocket 1.</em>
 </p>
 
+## Packages
+
+_No packages yet - see [Add a package](#add-a-package)._
+
 ## Add a package
 
 ```bash
