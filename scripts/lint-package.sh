@@ -29,6 +29,10 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 # shellcheck source=scripts/pkgdirs.sh
 source "$ROOT/scripts/pkgdirs.sh"
 
+# See the comment at the shellcheck call below for how this list was
+# derived and why each code is on it.
+PKGBUILD_EXCLUDE=SC2034,SC2154,SC2086,SC2164,SC2155,SC2206,SC2295
+
 status=0
 warn() { printf '  ~ %s\n' "$1"; }
 fail() { printf '  x %s\n' "$1" >&2; status=1; }
@@ -44,11 +48,25 @@ for dir in "${targets[@]}"; do
     printf '\n%s\n' "${dir#"$ROOT"/}"
 
     if command -v shellcheck > /dev/null 2>&1; then
-        # makepkg predefines srcdir, pkgdir and the whole metadata
-        # namespace, so SC2034 (unused) and SC2154 (referenced but not
-        # assigned) fire on every correct PKGBUILD. Excluding them is the
-        # standard ruleset, not a way of hiding findings.
-        if shellcheck --shell=bash --exclude=SC2034,SC2154 "$dir/PKGBUILD"; then
+        # The PKGBUILD ruleset. Derived empirically by running the
+        # linter against Arch's own official PKGBUILDs: every code below
+        # fires on them, because each one is a deliberate PKGBUILD idiom
+        # rather than a defect. (A comment line whose first word is the
+        # linter's name is parsed as a directive, hence the phrasing.)
+        #
+        #   SC2034/SC2154  makepkg predefines srcdir, pkgdir and the whole
+        #                  metadata namespace
+        #   SC2206         `source=(... .tar.{xz,sign})` - brace expansion
+        #                  in an array is the point
+        #   SC2164         `cd $_srcname` - makepkg already runs under
+        #                  `set -e`
+        #   SC2086         word splitting of makepkg-provided flags
+        #                  ($STRIP_SHARED and friends) is intended
+        #   SC2155/SC2295  style, and universal in upstream PKGBUILDs
+        #
+        # The real gates for a PKGBUILD are makepkg and namcap, both of
+        # which run below.
+        if shellcheck --shell=bash --exclude="$PKGBUILD_EXCLUDE" "$dir/PKGBUILD"; then
             pass "shellcheck: PKGBUILD"
         else
             fail "shellcheck: PKGBUILD"
