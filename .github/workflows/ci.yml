@@ -472,7 +472,17 @@ jobs:
       # last meant one unreachable host left the release unrecorded.
       - name: Create the GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          # A release created through the API belongs to whoever owns the
+          # token, and github.token is github-actions[bot] - which is why
+          # releases show up under the bot even though the commit and the
+          # tag it points at are authored, signed and tagged by the
+          # maintainer. No git setting can change that; only a different
+          # token can.
+          #
+          # RELEASE_TOKEN is a fine-grained PAT with contents:write on
+          # this repository. Without it this falls back to the bot rather
+          # than failing, so the pipeline still works before you make one.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           PKG: ${{ matrix.package }}
         run: |
           set -euo pipefail
