@@ -5,6 +5,26 @@ src/
 *.pkg.tar.zst.sig
 *.src.tar.gz
 
+# Everything makepkg leaves in a package directory is build state, and
+# not all of it has a predictable name: a VCS source clones into a bare
+# repository named after the source, so `source=("foo::git+...")` drops a
+# whole object store at packages/<pkg>/foo/. Enumerating those names is a
+# losing game, and the cost of missing one is a pack file in the history.
+#
+# So: no directories under packages/<pkg>/. A package's own files sit
+# flat next to its PKGBUILD; one that genuinely needs to ship a
+# subdirectory can `git add -f` it and say so.
+/packages/*/*/
+
+# Upstream sources makepkg downloads into the package directory. A
+# package's own files - those named in source=() without a URL - do not
+# match these patterns and stay tracked.
+/packages/*/*.tar.*
+/packages/*/*.zip
+/packages/*/*.sig
+/packages/*/*.sign
+/packages/*/*.patch
+
 # Zensical build output and its build cache.
 /site/
 /.cache/
