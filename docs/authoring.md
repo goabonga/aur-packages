@@ -1,5 +1,28 @@
 # Authoring a package
 
+Everything below is for changing what this repository ships. If you only
+want to install a package, [Get started](get-started.md) is shorter.
+
+## Set up
+
+```bash
+sudo pacman -S --needed base-devel git namcap pacman-contrib uv shellcheck
+git clone https://github.com/goabonga/aur-packages
+cd aur-packages
+```
+
+`base-devel` provides `makepkg`, `pacman-contrib` provides `updpkgsums`,
+and `uv` runs the documentation build.
+
+Everything except `makepkg` also works off Arch: the helper scripts
+degrade each unavailable check to a warning rather than a failure.
+
+Optionally, let the hooks run the checks for you:
+
+```bash
+uv run --only-group dev pre-commit install
+```
+
 ## The one invariant
 
 Four names are always the same string:
@@ -74,9 +97,21 @@ someone else's release. `pkgver` must track the upstream version and
 moves. Both are maintained by hand: `pkgrel` has to stay a positive
 integer, which a semantic version is not.
 
-## Checklist
+## Checking your work
 
 ```bash
-scripts/lint-package.sh <name>
+scripts/lint-package.sh <name>              # shellcheck, .SRCINFO, sums, namcap
+python3 scripts/check-packages.py           # the invariant
+uv tool run multicz validate --strict       # config and version drift
 cd packages/<name> && makepkg -f && namcap ./*.pkg.tar.zst
+```
+
+With no argument, `lint-package.sh` checks every `PKGBUILD` in the tree,
+the template included. All of it runs in CI too.
+
+## Building the documentation
+
+```bash
+uv sync --frozen --only-group doc
+uv run zensical serve
 ```

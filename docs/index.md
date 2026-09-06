@@ -18,9 +18,14 @@ why it is `pkgbase` and not `pkgname`.
 
 ## Where to go next
 
+If you want to **install** something:
+
+- [Get started](get-started.md) - install an AUR helper, install a package
 - [Packages](packages/index.md) - what this repository ships
-- [Get started](get-started.md) - requirements, add a package, check it
-- [Authoring a package](authoring.md) - the invariant and the rules
+
+If you want to **change** something:
+
+- [Authoring a package](authoring.md) - set up, the invariant, the rules
 - [Versioning and release](releasing.md) - the commit-to-AUR contract
 - [Pipeline](pipeline.md) - what CI runs, and why nothing is built there
 
