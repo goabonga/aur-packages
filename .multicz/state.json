@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "git_head": "998c2d2bd32ca5db9c512576de55338392945553",
+  "git_head_short": "998c2d2",
+  "timestamp": "2026-09-06T13:29:30Z",
+  "components": {
+    "yate-bts": {
+      "version": "0.1.0",
+      "tag": "yate-bts-v0.1.0",
+      "tag_sha": null
+    },
+    "docs": {
+      "version": "0.1.0",
+      "tag": "docs-v0.1.0",
+      "tag_sha": null
+    }
+  }
+}
