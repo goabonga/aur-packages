@@ -49,11 +49,22 @@ features = [
   "content.tabs.link",
   "content.tooltips",
   "navigation.footer",
-  "navigation.indexes",
+  # `navigation.indexes` and `navigation.sections` are deliberately
+  # absent, and both would break the same thing.
+  #
+  # `sections` renders a top-level section as a flat group above 1220px:
+  # every child always visible, the title inert. That is the opposite of
+  # a submenu you open.
+  #
+  # `indexes` attaches the overview page to the section title, so the
+  # title navigates and only the chevron toggles - clicking "Packages"
+  # would leave the submenu shut.
+  #
+  # Without them the whole title is the toggle at every width, and the
+  # overview stays reachable as the section's first entry.
   "navigation.instant",
   "navigation.instant.prefetch",
   "navigation.path",
-  "navigation.sections",
   "navigation.top",
   "navigation.tracking",
   "search.highlight",
