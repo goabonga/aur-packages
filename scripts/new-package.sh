@@ -56,6 +56,12 @@ cd "$ROOT/packages/$name"
 # should reach the package by default.
 rm -f TEMPLATE.md
 
+# makepkg leaves its work behind in the directory it builds in, and those
+# are gitignored - so `cp -r` above happily copies a stale build tree into
+# the new package while `git status` stays silent about it.
+rm -rf src pkg
+rm -f ./*.pkg.tar.zst ./*.pkg.tar.zst.sig ./*.log
+
 # Rename the payload files before rewriting contents, so the source=()
 # entries and the install= line end up pointing at files that exist.
 for f in "$TEMPLATE_NAME".*; do
