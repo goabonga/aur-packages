@@ -13,8 +13,8 @@ pkgbase = <name>          in the PKGBUILD and the .SRCINFO
 
 …and that string is also the **Conventional Commit scope**.
 
-`pkgbase`, not `pkgname`: a split package — a kernel and its headers, say
-— declares `pkgname=(a b)`, and only `pkgbase` identifies the source
+`pkgbase`, not `pkgname`: a split package - a kernel and its headers, say
+- declares `pkgname=(a b)`, and only `pkgbase` identifies the source
 package. For a single package `pkgbase` defaults to `pkgname`, so the two
 coincide.
 
@@ -53,7 +53,7 @@ changes system state belongs in a systemd unit the user enables.
 
 ### Licences are installed
 
-`usr/share/licenses/<pkgname>/LICENSE`, or namcap complains — unless the
+`usr/share/licenses/<pkgname>/LICENSE`, or namcap complains - unless the
 licence is one of the common ones already in
 `/usr/share/licenses/common`, which namcap will tell you.
 
@@ -65,10 +65,10 @@ the machine these packages are installed on is x86_64.
 
 ## Two versioning shapes
 
-**The package owns its content** — a configuration package, a set of
+**The package owns its content** - a configuration package, a set of
 quirks, a script you wrote. `pkgver` is the repository's own semver.
 
-**The package wraps upstream software** — a kernel, a patched build of
+**The package wraps upstream software** - a kernel, a patched build of
 someone else's release. `pkgver` must track the upstream version and
 `pkgrel` counts packaging revisions, resetting to `1` whenever `pkgver`
 moves. Both are maintained by hand: `pkgrel` has to stay a positive

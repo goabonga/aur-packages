@@ -11,18 +11,18 @@ individual AUR repositories.
 
 ## The one invariant
 
-Four names are always the same string — the directory, `pkgbase`, the
-multicz component, and the AUR repository — and that string is also the
+Four names are always the same string - the directory, `pkgbase`, the
+multicz component, and the AUR repository - and that string is also the
 Conventional Commit scope. [Authoring a package](authoring.md) explains
 why it is `pkgbase` and not `pkgname`.
 
 ## Where to go next
 
-- [Packages](packages/index.md) — what this repository ships
-- [Get started](get-started.md) — requirements, add a package, check it
-- [Authoring a package](authoring.md) — the invariant and the rules
-- [Versioning and release](releasing.md) — the commit-to-AUR contract
-- [Pipeline](pipeline.md) — what CI runs, and why nothing is built there
+- [Packages](packages/index.md) - what this repository ships
+- [Get started](get-started.md) - requirements, add a package, check it
+- [Authoring a package](authoring.md) - the invariant and the rules
+- [Versioning and release](releasing.md) - the commit-to-AUR contract
+- [Pipeline](pipeline.md) - what CI runs, and why nothing is built there
 
 This site grows as the repository does; each page arrives with the thing
 it documents.

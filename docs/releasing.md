@@ -9,14 +9,14 @@ whole interface.
 <type>(<scope>): <description>
 ```
 
-`<scope>` is the package name — the same string as the directory, the
+`<scope>` is the package name - the same string as the directory, the
 `pkgbase` and the AUR repository.
 
 | Type | Effect on the scoped package |
 | --- | --- |
 | `feat` | minor |
 | `fix`, `perf`, `revert` | patch |
-| `build` | patch — packaging changed, payload did not |
+| `build` | patch - packaging changed, payload did not |
 | `docs` | bumps the documentation site only |
 | `test`, `style`, `chore`, `refactor`, `ci` | nothing |
 
@@ -39,7 +39,7 @@ A kernel, a patched build of someone else's release. `pkgver` must track
 the upstream version, and `pkgrel` counts packaging revisions.
 
 **multicz cannot own either number.** `pkgrel` has to be a positive
-integer and a semantic version is not one — multicz would write
+integer and a semantic version is not one - multicz would write
 `pkgrel=1.0.1`, which pacman rejects. So the component declares **no**
 `bump_files`: multicz owns the component's own version line, its
 changelog and its tag, and the two numbers inside the `PKGBUILD` stay

@@ -2,7 +2,7 @@
 
 ## Requirements
 
-An Arch machine — the GPD Pocket, or any Arch box — with the packaging
+An Arch machine - the GPD Pocket, or any Arch box - with the packaging
 tooling:
 
 ```bash

@@ -7,11 +7,11 @@
 <!-- Check the one that applies. The scope of your commits must be the
      package name whenever you touched packages/<name>/. -->
 
-- [ ] `feat(<package>)` — new capability, new file installed (minor)
-- [ ] `fix(<package>)` — the package was wrong and now is not (patch)
-- [ ] `build(<package>)` — packaging changed, payload did not (patch)
-- [ ] `docs` — documentation only
-- [ ] `ci` / `chore` / `refactor` / `test` — no release
+- [ ] `feat(<package>)` - new capability, new file installed (minor)
+- [ ] `fix(<package>)` - the package was wrong and now is not (patch)
+- [ ] `build(<package>)` - packaging changed, payload did not (patch)
+- [ ] `docs` - documentation only
+- [ ] `ci` / `chore` / `refactor` / `test` - no release
 
 ## Packages touched
 
@@ -38,7 +38,7 @@ If you touched a package:
 - [ ] `.SRCINFO` regenerated with `scripts/srcinfo.sh <name>`
 - [ ] Checksums refreshed with `updpkgsums` (never `SKIP` for local files)
 - [ ] `scripts/lint-package.sh <name>` passes
-- [ ] `pkgrel` bumped (or `pkgver`, for an upstream move) — a release
+- [ ] `pkgrel` bumped (or `pkgver`, for an upstream move) - a release
       whose AUR content is unchanged fails the publish job
 - [ ] For a heavy package, the `build-package` workflow was run once
 

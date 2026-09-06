@@ -9,8 +9,8 @@ below are Arch's as much as ours.
 sudo pacman -S --needed base-devel git namcap pacman-contrib uv shellcheck
 ```
 
-Everything except `makepkg` also works off Arch — the helper scripts
-degrade each unavailable check to a warning — but a package cannot be
+Everything except `makepkg` also works off Arch - the helper scripts
+degrade each unavailable check to a warning - but a package cannot be
 built or its `.SRCINFO` regenerated anywhere else.
 
 ## The one invariant
@@ -65,7 +65,7 @@ scope**: `ci: pin the archlinux container`, `build: add the sync hook`,
 | --- | --- |
 | `feat` | minor |
 | `fix`, `perf`, `revert` | patch |
-| `build` | patch — packaging changed, payload did not |
+| `build` | patch - packaging changed, payload did not |
 | `docs` | bumps the documentation site only |
 | `test`, `style`, `chore`, `refactor`, `ci` | no release |
 
@@ -82,7 +82,7 @@ explicitly (`git add <paths>`), never `git add -A`.
 
 Do not add `Co-Authored-By` or tool-attribution trailers.
 
-Merges must preserve commit messages — rebase or merge, never
+Merges must preserve commit messages - rebase or merge, never
 squash-to-title, or multicz loses the types and scopes it releases from.
 
 ## Packaging rules

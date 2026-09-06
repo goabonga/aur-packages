@@ -17,7 +17,7 @@
 Some are specific to the machine; most are simply packages I want on Arch
 and would rather maintain myself. The AUR gives every package its own git
 repository, which stops scaling the moment a set of them shares patches,
-a release cadence and a CI run — so they live here together, and
+a release cadence and a CI run - so they live here together, and
 publication fans back out to the individual AUR repositories.
 
 ## Documentation
@@ -27,8 +27,8 @@ Published from `main` to GitHub Pages:
 
 ## The one invariant
 
-Four names are always the same string — `packages/<name>/`, `pkgbase`,
-the multicz component and the AUR repository — and that string is also
+Four names are always the same string - `packages/<name>/`, `pkgbase`,
+the multicz component and the AUR repository - and that string is also
 the Conventional Commit scope. `scripts/check-packages.py` enforces it on
 every push, because a break in it fails *silently*: the commit lands,
 multicz reports nothing to bump, and the package quietly stops being
@@ -68,7 +68,7 @@ is still useful off Arch.
 
 Each package owns its version, changelog and git tag, bumped from
 [Conventional Commits](https://www.conventionalcommits.org/) by
-[multicz](https://github.com/goabonga/multicz) — the scope is the package
+[multicz](https://github.com/goabonga/multicz) - the scope is the package
 name. Merging to `main` is the release: CI tags, pushes to each package's
 AUR repository and rebuilds the site.
 
@@ -85,7 +85,7 @@ and a semantic version is not one. Full contract:
 
 `detect` asks multicz which packages moved since their own last tag, and
 the per-package checks run over that list alone. **Nothing is built in
-CI** — the AUR distributes sources, and one of these packages is a
+CI** - the AUR distributes sources, and one of these packages is a
 kernel; building it is the manual `build-package` workflow. See
 [Pipeline](https://goabonga.github.io/aur-packages/pipeline/).
 

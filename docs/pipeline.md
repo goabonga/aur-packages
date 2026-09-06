@@ -18,7 +18,7 @@ Two workflows. `ci.yml` runs on pull requests to `main` and on pushes to
 ## Why `detect` asks multicz
 
 A path diff answers "what did this push touch?". That is not the question
-the release job asks minutes later — it asks "what is unreleased?".
+the release job asks minutes later - it asks "what is unreleased?".
 `multicz changed` with no `--since` compares each component against its
 own last tag, which is that second question. Using one source for both
 keeps the tested set and the released set identical: a package whose
@@ -30,7 +30,7 @@ the target branch instead.
 ## Nothing is built in `ci`
 
 The AUR distributes **sources**. No step in the release path needs a
-compiled package, and one of the packages here is a kernel — an hour of
+compiled package, and one of the packages here is a kernel - an hour of
 wall clock and more disk than a hosted runner leaves free.
 
 So `ci` runs only the cheap metadata checks, and building is a separate
@@ -43,7 +43,7 @@ Actions → build-package → Run workflow → package: <name>
 It frees the runner's preinstalled toolchains (~25 GB) first, because a
 kernel build does not fit otherwise.
 
-The one exception is `template`, which does build — its package is
+The one exception is `template`, which does build - its package is
 `arch=('any')` and takes seconds.
 
 ## `makepkg` cannot run as root
