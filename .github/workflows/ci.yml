@@ -466,6 +466,33 @@ jobs:
           cd "packages/${{ matrix.package }}"
           su builder -c 'makepkg --printsrcinfo' > .SRCINFO.new
           mv .SRCINFO.new .SRCINFO
+      # Before the AUR push, not after: the tag this documents was
+      # created and pushed by the release job, so it describes real
+      # released code whether or not the AUR accepts it. Ordering it
+      # last meant one unreachable host left the release unrecorded.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PKG: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory '*'
+          # The tag multicz just created. Read from git rather than from
+          # `multicz get`, which resolves a version out of bump_files - a
+          # component whose pkgver tracks upstream declares none.
+          tag=$(git describe --tags --match "${PKG}-v*" --abbrev=0)
+          # Notes for this tag only: the package CHANGELOG accumulates
+          # every release, so attaching it whole would make the second
+          # release repeat the first.
+          uv tool run multicz release-notes --tag "$tag" > /tmp/notes.md
+          cat /tmp/notes.md
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists."
+          else
+            gh release create "$tag" \
+              --title "$PKG ${{ steps.version.outputs.pkgver }}-${{ steps.version.outputs.pkgrel }}" \
+              --notes-file /tmp/notes.md
+          fi
       - name: Detect AUR credentials
         id: aur
         env:
@@ -486,23 +513,49 @@ jobs:
           AUR_SSH_KNOWN_HOSTS: ${{ vars.AUR_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
+          # Everything lives at an absolute path under RUNNER_TEMP and is
+          # handed to git explicitly, rather than in ~/.ssh and left for
+          # ssh to find. `~` depends on HOME, and HOME is not something a
+          # container job should be trusted to agree on between steps -
+          # a first attempt wrote a perfectly good known_hosts and still
+          # died on "Host key verification failed" one step later.
+          d="$RUNNER_TEMP/aur-ssh"
+          mkdir -p "$d" && chmod 700 "$d"
+
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$d/id"
+          chmod 600 "$d/id"
+
           if [ -n "${AUR_SSH_KNOWN_HOSTS:-}" ]; then
-            printf '%s\n' "$AUR_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            printf '%s\n' "$AUR_SSH_KNOWN_HOSTS" > "$d/known_hosts"
           else
-            ssh-keyscan -t ed25519,rsa aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+            # stderr is kept: hiding it once turned an empty keyscan into
+            # a bare "Host key verification failed" two steps later, with
+            # nothing in the log pointing at the cause.
+            ssh-keyscan -t ed25519,rsa aur.archlinux.org > "$d/known_hosts"
             echo "::warning::AUR_SSH_KNOWN_HOSTS is not set - the host key was accepted on first use."
           fi
-          chmod 600 ~/.ssh/known_hosts
-          cat > ~/.ssh/config <<'EOF'
-          Host aur.archlinux.org
-            User aur
-            IdentityFile ~/.ssh/aur
-            IdentitiesOnly yes
-          EOF
-          chmod 600 ~/.ssh/config
+          chmod 600 "$d/known_hosts"
+
+          # Assert the file actually names the host. An empty or
+          # comment-only known_hosts passes every check above and then
+          # fails opaquely inside git.
+          if ! grep -q '^aur\.archlinux\.org' "$d/known_hosts"; then
+            echo "::error::no host key for aur.archlinux.org was recorded - refusing to continue"
+            cat "$d/known_hosts"
+            exit 1
+          fi
+          echo "Recorded $(grep -c '^aur\.archlinux\.org' "$d/known_hosts") host key(s)."
+
+          # Every later step reaches the AUR through exactly this command.
+          echo "GIT_SSH_COMMAND=ssh -i $d/id -o IdentitiesOnly=yes -o UserKnownHostsFile=$d/known_hosts -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
+
+          # Prove the key authenticates before anything tries to push. The
+          # AUR always exits non-zero here, printing either a greeting or
+          # a refusal, so the message is the signal rather than the code.
+          ssh -i "$d/id" -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile="$d/known_hosts" \
+              -o StrictHostKeyChecking=yes -o BatchMode=yes \
+              aur@aur.archlinux.org help 2>&1 | head -3 || true
       - name: Push to the AUR
         if: steps.aur.outputs.available == 'true'
         env:
@@ -521,16 +574,23 @@ jobs:
           git config --global user.email "${AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
           git config --global --add safe.directory '*'
 
-          # An AUR repository that does not exist yet is created by
-          # pushing to it, so a clone failure is the expected path for a
-          # brand-new package rather than an error.
-          if git clone "ssh://aur@aur.archlinux.org/${PKG}.git" /tmp/aur 2>/dev/null; then
-            echo "Cloned the existing AUR repository."
+          # The AUR serves a package that does not exist yet as an empty
+          # repository rather than an error, so a clone that FAILS is
+          # always a real problem - auth, host key, network - and never
+          # "this is a new package".
+          #
+          # Treating the two as one is what produced a run that announced
+          # "No AUR repository yet" for a package that has existed since
+          # 2018, and then failed on the push it should never have
+          # reached.
+          if ! git clone "ssh://aur@aur.archlinux.org/${PKG}.git" /tmp/aur; then
+            echo "::error::could not reach the AUR repository for ${PKG} - see the clone output above"
+            exit 1
+          fi
+          if [ -z "$(git -C /tmp/aur rev-parse --verify HEAD 2>/dev/null)" ]; then
+            echo "Empty AUR repository - ${PKG} is new and this push creates it."
           else
-            echo "No AUR repository yet - initialising ${PKG}."
-            mkdir -p /tmp/aur
-            git -C /tmp/aur init -q -b master
-            git -C /tmp/aur remote add origin "ssh://aur@aur.archlinux.org/${PKG}.git"
+            echo "Cloned the existing AUR repository at $(git -C /tmp/aur rev-parse --short HEAD)."
           fi
 
           # Replace the tracked content wholesale so a file deleted here
@@ -571,29 +631,6 @@ jobs:
             echo "Version \`${{ steps.version.outputs.pkgver }}-${{ steps.version.outputs.pkgrel }}\`"
             echo "is ready to publish once the secret exists."
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Create the GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PKG: ${{ matrix.package }}
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory '*'
-          # The tag multicz just created. Read from git rather than from
-          # `multicz get`, which resolves a version out of bump_files - a
-          # component whose pkgver tracks upstream declares none.
-          tag=$(git describe --tags --match "${PKG}-v*" --abbrev=0)
-          # Notes for this tag only: the package CHANGELOG accumulates
-          # every release, so attaching it whole would make the second
-          # release repeat the first.
-          uv tool run multicz release-notes --tag "$tag" > /tmp/notes.md
-          cat /tmp/notes.md
-          if gh release view "$tag" > /dev/null 2>&1; then
-            echo "Release $tag already exists."
-          else
-            gh release create "$tag" \
-              --title "$PKG ${{ steps.version.outputs.pkgver }}-${{ steps.version.outputs.pkgrel }}" \
-              --notes-file /tmp/notes.md
-          fi
 
   # ---------------------------------------------------------------------
   # Deploy the site from the release commit, so what is published
