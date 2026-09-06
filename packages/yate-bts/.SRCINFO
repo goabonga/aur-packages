@@ -1,0 +1,23 @@
+pkgbase = yate-bts
+	pkgdesc = YateBTS is an open source GSM Base Station software
+	pkgver = 6.1.1
+	pkgrel = 1
+	url = https://yatebts.com/
+	arch = x86_64
+	license = GPL-2.0-only
+	makedepends = git
+	makedepends = autoconf
+	depends = yate
+	optdepends = nginx: nipc_web support
+	optdepends = apache: nipc_web support
+	optdepends = php-fpm: nipc_web support
+	backup = etc/yate/snmp_data.conf
+	backup = etc/yate/ybts.conf
+	backup = etc/yate/tmsidata.conf
+	backup = etc/yate/subscribers.conf
+	source = yate-bts::git+https://github.com/yatevoip/yatebts.git#commit=9b289b413c93e882bc4a0722060e94f5538ba1aa
+	source = ansql::git+https://github.com/yatevoip/ansql.git#commit=a19283f47b6d125a0c0e70f2bd104baa0235ed57
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = yate-bts

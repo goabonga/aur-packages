@@ -36,7 +36,9 @@ released.
 
 ## Packages
 
-_No packages yet - see [Add a package](#add-a-package)._
+| Package | AUR | Role |
+| --- | --- | --- |
+| [`yate-bts`](packages/yate-bts) | [AUR](https://aur.archlinux.org/packages/yate-bts) | YateBTS - an open source GSM base station, running on the Yate engine |
 
 ## Add a package
 

@@ -25,6 +25,7 @@ nav = [
   { "Get started" = "get-started.md" },
   { "Packages" = [
       { "Overview" = "packages/index.md" },
+      { "yate-bts" = "packages/yate-bts.md" },
   ] },
   { "Developer" = [
       { "Authoring a package" = "authoring.md" },

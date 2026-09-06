@@ -19,7 +19,7 @@ itself from then on.
 ## Install a package
 
 ```bash
-yay -S <name>
+yay -S yate-bts
 ```
 
 `yay` fetches the `PKGBUILD`, shows it to you, builds it and hands the

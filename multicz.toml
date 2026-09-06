@@ -59,6 +59,24 @@ types = ["build"]
 title = "Performance"
 types = ["perf"]
 
+# YateBTS. The scaffolder writes the "package owns its content" shape by
+# default; this one wraps upstream software, so both version numbers stay
+# with the maintainer.
+#
+# No `bump_files`: pkgver follows upstream's AC_INIT at the pinned commit
+# and pkgrel counts packaging revisions, and neither can be a semantic
+# version - pacman requires pkgrel to be a positive integer. multicz owns
+# the component's own version line, its changelog and its tag; the
+# numbers inside the PKGBUILD do not move unless a human moves them.
+#
+# So a release here means "this packaging changed", and the AUR push that
+# follows only ships something if pkgrel (or pkgver) moved with it. The
+# aur-publish job refuses a release whose pushed content is unchanged,
+# which is what catches a forgotten pkgrel bump.
+[components.yate-bts]
+paths = ["packages/yate-bts/**"]
+changelog = "packages/yate-bts/CHANGELOG.md"
+
 # The Zensical site is a release-tracked component: it has a version, a
 # tag and a changelog, so "did the docs move?" is a tag-aware question
 # answered by the same planner that will answer it for packages. Its
@@ -72,4 +90,5 @@ paths = ["docs/**", "zensical.toml"]
 bump_files = [
     { file = "zensical.toml", key = "project.extra.versions.docs" },
 ]
+depends_on = ["yate-bts"]
 bump_rules = { docs = "patch" }
